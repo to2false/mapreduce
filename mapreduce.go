@@ -182,7 +182,11 @@ func mapReduceWithPanicChan[T, U, V any](source <-chan T, panicChan *onceChan, m
 		defer func() {
 			drain(collector)
 			if r := recover(); r != nil {
-				panicChan.write(r)
+				buf := make([]byte, 64<<10)
+				n := runtime.Stack(buf, false)
+				buf = buf[:n]
+
+				panicChan.write(fmt.Sprintf("%v\n%s", r, string(buf)))
 			}
 			finish()
 		}()
@@ -269,7 +273,11 @@ func buildSource[T any](generate GenerateFunc[T], panicChan *onceChan) chan T {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				panicChan.write(r)
+				buf := make([]byte, 64<<10)
+				n := runtime.Stack(buf, false)
+				buf = buf[:n]
+
+				panicChan.write(fmt.Sprintf("%v\n%s", r, string(buf)))
 			}
 			close(source)
 		}()
@@ -316,7 +324,12 @@ func executeMappers[T, U any](mCtx mapperContext[T, U]) {
 				defer func() {
 					if r := recover(); r != nil {
 						atomic.AddInt32(&failed, 1)
-						mCtx.panicChan.write(r)
+
+						buf := make([]byte, 64<<10)
+						n := runtime.Stack(buf, false)
+						buf = buf[:n]
+		
+						mCtx.panicChan.write(fmt.Sprintf("%v\n%s", r, string(buf)))
 					}
 					wg.Done()
 					<-pool
